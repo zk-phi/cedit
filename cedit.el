@@ -18,14 +18,14 @@
 
 ;; Author: zk_phi
 ;; URL: http://hins11.yu-yake.com/
-;; Version: 0.0.1
+;; Version: 0.0.0
 
 ;;; Commentary:
 
-;; Following commands are defined. Call them with "M-x foo", or bind anywhere.
-;; (in following examples, "|" are cursors)
+;; Following commands are defined. Call them with "M-x foo", or bind some keys.
 
 ;; o cedit-forward-char / cedit-backward-char
+;;   (in following examples, "|" are cursors)
 ;;
 ;;       fo|o; {bar;} baz;
 ;;   =>  foo|; {bar;} baz;
@@ -92,7 +92,6 @@
 ;; commands are also defined.
 
 ;; o cedit-or-paredit-slurp
-;; o cedit-or-paredit-wrap
 ;; o cedit-or-paredit-barf
 ;; o cedit-or-paredit-splice-killing-backward
 ;; o cedit-or-paredit-raise
@@ -101,9 +100,13 @@
 
 ;;; Change Log:
 
-;; 0.0.1 test release
+;; 0.0.0 test release
 
 ;;; Code:
+
+;; * constants
+
+(defconst cedit-version "0.0.0")
 
 ;; * utilities
 
@@ -535,16 +538,6 @@ to raise statement, in case comma-expr is also able to be raise, mark it."
             (t (cedit--orelse (cedit-slurp)
                               (paredit-forward-slurp-sexp))))))
 
-  (defun cedit-or-paredit-wrap ()
-    "call cedit-wrap-brace or paredit-wrap-round"
-    (interactive)
-    (let ((beg (save-excursion
-                 (ignore-errors (cedit-beginning-of-statement 'this)))))
-      (if (or (and beg (= (point) beg))
-              (and (interactive-p) transient-mark-mode mark-active))
-          (cedit-wrap-brace)
-        (paredit-wrap-round))))
-
   (defun cedit-or-paredit-barf ()
     "call cedit-barf or paredit-backward-barf-sexp"
     (interactive)
@@ -589,3 +582,9 @@ to raise statement, in case comma-expr is also able to be raise, mark it."
             (t (cedit--orelse (cedit-raise)
                               (paredit-raise-sexp))))))
   )
+
+;; * provide
+
+(provide 'cedit)
+
+;;; cedit.el ends here
