@@ -18,7 +18,7 @@
 
 ;; Author: zk_phi
 ;; URL: http://hins11.yu-yake.com/
-;; Version: 0.0.0
+;; Version: 0.0.1
 
 ;;; Commentary:
 
@@ -101,12 +101,13 @@
 ;;; Change Log:
 
 ;; 0.0.0 test release
+;; 0.0.1 use require instead of autoload
 
 ;;; Code:
 
 ;; * constants
 
-(defconst cedit-version "0.0.0")
+(defconst cedit-version "0.0.1")
 
 ;; * utilities
 
@@ -514,15 +515,7 @@ to raise statement, in case comma-expr is also able to be raise, mark it."
 
 ;; * paredit
 
-(when (locate-library "paredit")
-
-  (dolist (fn '(paredit-forward-up
-                paredit-forward-slurp-sexp
-                paredit-wrap-round
-                paredit-backward-barf-sexp
-                paredit-splice-sexp-killing-backward
-                paredit-raise-sexp))
-    (autoload fn "paredit" nil t))
+(when (require 'paredit nil t)
 
   (defun cedit-or-paredit-slurp ()
     "call cedit-slurp or paredit-forward-slurp-sexp"
