@@ -12,28 +12,24 @@ paredit-like commands for c-like languages
 
 Require this script
 
-#+begin_src emacs-lisp
-  (require 'cedit)
-#+end_src
+: (require 'cedit)
 
 then following commands are available.
 
-#+begin_src emacs-lisp
-  cedit-forward-char
-  cedit-backward-char
-  cedit-beginning-of-statement
-  cedit-end-of-statement
-
-  cedit-down-block
-  cedit-up-block-forward
-  cedit-up-block-backward
-
-  cedit-slurp
-  cedit-wrap-brace
-  cedit-barf
-  cedit-splice-killing-backward
-  cedit-raise
-#+end_src
+: cedit-forward-char
+: cedit-backward-char
+: cedit-beginning-of-statement
+: cedit-end-of-statement
+:
+: cedit-down-block
+: cedit-up-block-forward
+: cedit-up-block-backward
+:
+: cedit-slurp
+: cedit-wrap-brace
+: cedit-barf
+: cedit-splice-killing-backward
+: cedit-raise
 
 Keybinds are not changed automatically.
 
@@ -42,12 +38,10 @@ Keybinds are not changed automatically.
 When paredit.el is found on your system, following commands are also
 available.
 
-#+begin_src emacs-lisp
-  cedit-or-paredit-slurp
-  cedit-or-paredit-barf
-  cedit-or-paredit-splice-killing-backward
-  cedit-or-paredit-raise
-#+end_src
+: cedit-or-paredit-slurp
+: cedit-or-paredit-barf
+: cedit-or-paredit-splice-killing-backward
+: cedit-or-paredit-raise
 
 They are "dwim" commands that call one of cedit-xxx or paredit-xxx.
 
