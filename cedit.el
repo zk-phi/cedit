@@ -176,6 +176,7 @@ foo; |foobar;  =>  |foo; foobar;"
 (defconst cedit--opening-parens '(?\{ ?\( ?\[))
 (defconst cedit--closing-parens '(?\} ?\) ?\]))
 
+;;;###autoload
 (defun cedit-forward-char (&optional nest)
   "balanced forward-char / returns point
 foo|; {bar;} baz;  =>  foo;| {bar;} baz;
@@ -198,6 +199,7 @@ foo; {bar;} baz;|  =>  ERROR"
    (when (> nest 0) (cedit-forward-char nest))
    (point)))
 
+;;;###autoload
 (defun cedit-backward-char (&optional nest)
   "balanced backward-char / returns point
 foo; {bar;}| baz;  =>  foo; |{bar;} baz;
@@ -220,6 +222,7 @@ foo; {|bar;} baz;  =>  ERROR
    (when (> nest 0) (cedit-backward-char nest))
    (point)))
 
+;;;###autoload
 (defun cedit-end-of-statement (&optional this)
   "goto end of statement
 when THIS is non-nil, do not move to next statement
@@ -236,6 +239,7 @@ foo; {bar;|} baz;  =>  ERROR"
     (cedit--move-iff-possible
      (cedit--search-char-forward '(?\; ?\})))))
 
+;;;###autoload
 (defun cedit-beginning-of-statement (&optional this)
   "goto beginning of statement
 when THIS is non-nil, do not move to previous statement
@@ -256,6 +260,7 @@ foo; {|bar;} baz;  =>  ERROR"
    (skip-chars-forward "\s\t\n"))
   (point))
 
+;;;###autoload
 (defun cedit-down-block ()
   "go down into block
 |else{foo; bar;}  =>  else{|foo; bar;}
@@ -268,6 +273,7 @@ foo; {|bar;} baz;  =>  ERROR"
    (search-forward "{")
    (skip-chars-forward "\s\t\n")))
 
+;;;###autoload
 (defun cedit-up-block-backward ()
   "go backward out of block.
 if called at top-level, goto beginning of the first statement.
@@ -284,6 +290,7 @@ do{foo; bar; b|az;}  =>  |do{foo; bar; baz;}
     (cedit-beginning-of-statement 'this))
   (point))
 
+;;;###autoload
 (defun cedit-up-block-forward ()
   "go forward out of block.
 if called at top-level, goto end of the last statement.
@@ -339,6 +346,7 @@ do{foo; bar; b|az;}  =>  do{foo; bar; baz;}|
      (insert "\n}")
      (indent-region beg (point)))))
 
+;;;###autoload
 (defun cedit-slurp ()
   "slurp statement
 {fo|o; bar;} baz;  =>  {fo|o, bar;} baz;
@@ -352,6 +360,7 @@ do{foo; bar; b|az;}  =>  do{foo; bar; baz;}|
 
 ;; * wrap command
 
+;;;###autoload
 (defun cedit-wrap-brace ()
   "wrap statement with brace
 to wrap two or more statements, mark them"
@@ -417,6 +426,7 @@ to wrap two or more statements, mark them"
      (insert "}\n")
      (indent-region beg (cedit-end-of-statement)))))
 
+;;;###autoload
 (defun cedit-barf ()
   "barf statement
 {fo|o, bar; baz;}  =>  {fo|o; bar; baz;}
@@ -458,6 +468,7 @@ to wrap two or more statements, mark them"
     (indent-region (point)
                    (save-excursion (insert str) (point)))))
 
+;;;###autoload
 (defun cedit-splice-killing-backward ()
   "splice statements killing preceding statements
 {foo; bar, b|az, foobar;}  =>  {foo; |baz, foobar;}
@@ -499,6 +510,7 @@ to wrap two or more statements, mark them"
     (indent-region (point)
                    (save-excursion (insert str) (point)))))
 
+;;;###autoload
 (defun cedit-raise ()
   "raise statement
 {foo; bar, b|az, foobar;}  =>  {foo; |baz;}
@@ -517,6 +529,7 @@ to raise statement, in case comma-expr is also able to be raise, mark it."
 
 (when (require 'paredit nil t)
 
+;;;###autoload
   (defun cedit-or-paredit-slurp ()
     "call cedit-slurp or paredit-forward-slurp-sexp"
     (interactive)
@@ -531,6 +544,7 @@ to raise statement, in case comma-expr is also able to be raise, mark it."
             (t (cedit--orelse (cedit-slurp)
                               (paredit-forward-slurp-sexp))))))
 
+;;;###autoload
   (defun cedit-or-paredit-barf ()
     "call cedit-barf or paredit-backward-barf-sexp"
     (interactive)
@@ -545,6 +559,7 @@ to raise statement, in case comma-expr is also able to be raise, mark it."
             (t (cedit--orelse (cedit-barf)
                               (paredit-backward-barf-sexp))))))
 
+;;;###autoload
   (defun cedit-or-paredit-splice-killing-backward ()
     "call cedit-splice-killing or paredit-splice-sexp-killing-backward"
     (interactive)
@@ -561,6 +576,7 @@ to raise statement, in case comma-expr is also able to be raise, mark it."
                 (cedit-splice-killing-backward)
                 (paredit-splice-sexp-killing-backward))))))
 
+;;;###autoload
   (defun cedit-or-paredit-raise ()
     "call cedit-raise or paredit-raise-sexp"
     (interactive)
