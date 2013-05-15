@@ -105,6 +105,8 @@
 
 ;;; Code:
 
+(eval-when-compile (require 'cl))
+
 ;; * constants
 
 (defconst cedit-version "0.0.1")
@@ -330,8 +332,8 @@ do{foo; bar; b|az;}  =>  do{foo; bar; baz;}|
   (cedit--save-excursion
    ;; foo; }| bar;
    (case (cedit--this-statement-type)
-     ('block (cedit-end-of-statement 'this))
-     ('statement (cedit-up-block-forward)))
+	 (block (cedit-end-of-statement 'this))
+	 (statement (cedit-up-block-forward)))
    (assert (= (char-before) ?\}))
    ;; foo; |} bar;
    (let* ((beg (1- (point)))
