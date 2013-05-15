@@ -45,3 +45,7 @@ available.
 
 They are "dwim" commands that call one of cedit-xxx or paredit-xxx.
 
+** Contribution
+
+cedit is now in very beta stage. You should feel free to fix this, or
+even develop a better version.
