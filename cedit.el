@@ -519,7 +519,8 @@ to wrap two or more statements, mark them"
                            =>  baz;
 to raise statement, in case comma-expr is also able to be raise, mark it."
   (interactive)
-  (if (and (interactive-p) transient-mark-mode mark-active)
+  (if (and (called-interactively-p 'any)
+           transient-mark-mode mark-active)
       (let ((beg (region-beginning))
             (end (region-end)))
         (deactivate-mark)
@@ -530,6 +531,13 @@ to raise statement, in case comma-expr is also able to be raise, mark it."
 ;; * paredit
 
 (when (require 'paredit nil t)
+
+  ;; suppress byte-compiler
+  (declare-function paredit-raise-sexp "paredit")
+  (declare-function paredit-forward-up "paredit")
+  (declare-function paredit-forward-slurp-sexp "paredit")
+  (declare-function paredit-backward-barf-sexp "paredit")
+  (declare-function paredit-splice-sexp-killing-backward "paredit")
 
 ;;;###autoload
   (defun cedit-or-paredit-slurp ()
