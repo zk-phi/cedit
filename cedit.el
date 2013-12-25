@@ -18,7 +18,7 @@
 
 ;; Author: zk_phi
 ;; URL: http://hins11.yu-yake.com/
-;; Version: 0.0.1
+;; Version: 0.0.2
 
 ;;; Commentary:
 
@@ -102,6 +102,7 @@
 
 ;; 0.0.0 test release
 ;; 0.0.1 use require instead of autoload
+;; 0.0.2 allow cedit-down-block to go down parens
 
 ;;; Code:
 
@@ -268,12 +269,19 @@ foo; {|bar;} baz;  =>  ERROR"
 |else{foo; bar;}  =>  else{|foo; bar;}
 |foo;  =>  ERROR"
   (interactive)
-  (cedit--move-iff-possible
-   (when (not (eq (cedit--this-statement-type) 'block))
-     (error "this statement is not a block"))
-   (cedit-beginning-of-statement 'this)
-   (search-forward "{")
-   (skip-chars-forward "\s\t\n")))
+  ;; Down into (), [] ---- 2013 / 12 / 25
+  (if (and (called-interactively-p 'any)
+           (or (and (looking-back "\\s)")
+                    (backward-sexp 1))
+               (looking-at "\\s(")))
+      (progn (forward-char 1) (skip-chars-forward "\s\t\n"))
+    ;; the original behavior
+    (cedit--move-iff-possible
+     (when (not (eq (cedit--this-statement-type) 'block))
+       (error "this statement is not a block"))
+     (cedit-beginning-of-statement 'this)
+     (search-forward "{")
+     (skip-chars-forward "\s\t\n"))))
 
 ;;;###autoload
 (defun cedit-up-block-backward ()
