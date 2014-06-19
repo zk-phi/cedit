@@ -570,12 +570,12 @@ to raise statement, in case comma-expr is also able to be raise, mark it."
                   (ignore-errors (paredit-forward-up) (point))))
           (c (save-excursion
                (ignore-errors (cedit-end-of-statement 'this)))))
-      (cond ((null c) (paredit-backward-barf-sexp))
+      (cond ((null c) (paredit-forward-barf-sexp))
             ((null pare) (cedit-barf))
-            ((< pare c) (cedit--orelse (paredit-backward-barf-sexp)
+            ((< pare c) (cedit--orelse (paredit-forward-barf-sexp)
                                        (cedit-barf)))
             (t (cedit--orelse (cedit-barf)
-                              (paredit-backward-barf-sexp))))))
+                              (paredit-forward-barf-sexp))))))
 
 ;;;###autoload
   (defun cedit-or-paredit-splice-killing-backward ()
