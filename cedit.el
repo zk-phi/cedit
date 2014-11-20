@@ -127,14 +127,19 @@
       (goto-char old-point)
       val)))
 
-(defmacro cedit--orelse (first second)
-  "try to eval the first sexp. if failed, the second sexp is evaled."
-  `(condition-case err ,first (error ,second)))
+(defmacro cedit--orelse (fst snd)
+  "try to eval the first sexp. if failed, the second sexp is
+evaled."
+  `(condition-case err ,fst (error ,snd)))
 
 (defmacro cedit--dowhile (prop &rest sexps)
   "simple do-while loop"
   `(progn ,@sexps
           (while ,prop (progn ,@sexps))))
+
+(defmacro cedit--assert (exp)
+  `(unless ,exp
+     (error ,(format "assertion failed: %s" exp))))
 
 (defun cedit--count-statements (beg end)
   "return number of statements in the region"
@@ -172,7 +177,9 @@ foo; |foobar;  =>  |foo; foobar;"
 (defun cedit--this-statement-type ()
   (cedit--save-excursion
    (cedit-end-of-statement 'this)
-   (case (char-before) (?\; 'statement) (?\} 'block))))
+   (let ((ch (char-before)))
+     (cond ((= ch ?\;) 'statement)
+           ((= ch ?\}) 'block)))))
 
 ;; * motion commands
 
@@ -323,12 +330,12 @@ do{foo; bar; b|az;}  =>  do{foo; bar; baz;}|
   (cedit--save-excursion
    ;; foo;| bar;
    (cedit-end-of-statement 'this)
-   (assert (= (char-before) ?\;))
+   (cedit--assert (= (char-before) ?\;))
    ;; foo|; bar;
    (let ((beg (1- (point))))
      ;; foo; bar;|
      (cedit-end-of-statement)
-     (assert (= (char-before) ?\;))
+     (cedit--assert (= (char-before) ?\;))
      ;; foo; |bar;
      (cedit-beginning-of-statement 'this)
      ;; foo|bar;
@@ -339,10 +346,12 @@ do{foo; bar; b|az;}  =>  do{foo; bar; baz;}|
 (defun cedit--slurp-brace ()
   (cedit--save-excursion
    ;; foo; }| bar;
-   (case (cedit--this-statement-type)
-     (block (cedit-end-of-statement 'this))
-     (statement (cedit-up-block-forward)))
-   (assert (= (char-before) ?\}))
+   (let ((type (cedit--this-statement-type)))
+     (cond ((eq type 'block)
+            (cedit-end-of-statement 'this))
+           ((eq type 'statement)
+            (cedit-up-block-forward))))
+   (cedit--assert (= (char-before) ?\}))
    ;; foo; |} bar;
    (let* ((beg (1- (point)))
           ;; foo; } |bar;
@@ -400,7 +409,7 @@ to wrap two or more statements, mark them"
    (let ((beg (cedit-beginning-of-statement 'this))
          ;; foo, bar;|
          (end (cedit-end-of-statement 'this)))
-     (assert (= (char-before) ?\;))
+     (cedit--assert (= (char-before) ?\;))
      ;; foo|, bar;
      (cedit--search-char-backward ?,)
      (when (< (point) beg)
@@ -425,7 +434,7 @@ to wrap two or more statements, mark them"
           ;; foo; bar; }|
           (end (cedit-up-block-forward))
           ;; foo; bar;| }
-          (stmt-end (progn (assert (= (char-before) ?\}))
+          (stmt-end (progn (cedit--assert (= (char-before) ?\}))
                            (backward-char)
                            (1+ (cedit--search-char-backward ?\;))))
           ;; foo; |bar; }
@@ -460,7 +469,7 @@ to wrap two or more statements, mark them"
                 (point)))
          (end (save-excursion
                 (cedit-end-of-statement 'this)
-                (assert (= (char-before) ?\;))
+                (cedit--assert (= (char-before) ?\;))
                 (point))))
     (delete-region (cedit-beginning-of-statement 'this) beg)))
 
@@ -472,7 +481,7 @@ to wrap two or more statements, mark them"
                 (ignore-errors (while t (cedit-end-of-statement)))
                 (point)))
          (str (buffer-substring beg end))
-         (count (cedit--count-statements beg end)))
+         (cnt (cedit--count-statements beg end)))
     (delete-region (save-excursion (cedit-up-block-backward))
                    (save-excursion (cedit-up-block-forward)))
     (indent-region (point)
@@ -515,7 +524,7 @@ to wrap two or more statements, mark them"
          (str (buffer-substring beg end)))
     (delete-region (save-excursion (cedit-up-block-backward))
                    (save-excursion (cedit-up-block-forward)
-                                   (assert (= (char-before) ?\}))
+                                   (cedit--assert (= (char-before) ?\}))
                                    (point)))
     (indent-region (point)
                    (save-excursion (insert str) (point)))))
