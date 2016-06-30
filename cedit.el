@@ -1,6 +1,7 @@
 ;;; cedit.el --- paredit-like commands for c-like languages
 
 ;; Copyright (C) 2013-2015 zk_phi
+;; Copyright (C) 2016 Chris Gregory czipperz@gmail.com
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -18,11 +19,12 @@
 
 ;; Author: zk_phi
 ;; URL: http://hins11.yu-yake.com/
-;; Version: 0.0.2
+;; Version: 0.1.0
 
 ;;; Commentary:
 
-;; Following commands are defined. Call them with "M-x foo", or bind some keys.
+;; Following commands are defined.  Call them with "M-x foo", or bind
+;; some keys.
 
 ;; o cedit-forward-char / cedit-backward-char
 ;;   (in following examples, "|" are cursors)
@@ -88,8 +90,8 @@
 ;;       {foo; ba|r; baz;}
 ;;   =>  |bar;
 
-;; In addition, if "paredit.el" is installed on your emacs, following
-;; commands are also defined.
+;; In addition, if "paredit.el" is installed on your Emacs, the
+;; following commands are also defined.
 
 ;; o cedit-or-paredit-slurp
 ;; o cedit-or-paredit-barf
@@ -103,6 +105,8 @@
 ;; 0.0.0 test release
 ;; 0.0.1 use require instead of autoload
 ;; 0.0.2 allow cedit-down-block to go down parens
+;; 0.1.0 add a bunch of tests, fix behavior of some functions to match
+;;       their supposed behavior.  Make functions behave consistently
 
 ;;; Code:
 
@@ -115,34 +119,35 @@
 ;; * utilities
 
 (defmacro cedit--move-iff-possible (&rest sexps)
-  "try to eval sexps. point is moved only if succeeded."
+  "Eval SEXPS, restoring the point if an error occured."
   `(let ((old-point (point)))
      (condition-case err (progn ,@sexps)
        (error (goto-char old-point) (error (cadr err))))))
 
 (defmacro cedit--save-excursion (&rest sexps)
-  "eval sexps. point is not moved even when an error occurs."
+  "Eval SEXPS, not moving the point even when an error occured."
   `(cedit--move-iff-possible
     (let ((val (progn ,@sexps)))
       (goto-char old-point)
       val)))
 
 (defmacro cedit--orelse (fst snd)
-  "try to eval the first sexp. if failed, the second sexp is
-evaled."
+  "Try to eval FST and return the result.  If it threw an error,
+SND is evaled and returned."
   `(condition-case err ,fst (error ,snd)))
 
 (defmacro cedit--dowhile (prop &rest sexps)
-  "simple do-while loop"
+  "Eval SEXPS in order then repeat while PROP is truthy."
   `(progn ,@sexps
           (while ,prop (progn ,@sexps))))
 
 (defmacro cedit--assert (exp)
+  "Assert EXP is truthy, throwing an error if it didn't."
   `(unless ,exp
      (error ,(format "assertion failed: %s" exp))))
 
 (defun cedit--count-statements (beg end)
-  "return number of statements in the region"
+  "Get number of statements in the region BEG END."
   (cedit--save-excursion
    (goto-char beg)
    (let ((cnt 0))
@@ -151,8 +156,11 @@ evaled."
      cnt)))
 
 (defun cedit--search-char-forward (chars)
-  "* moves point even when fail
-\(search ?r)
+  "Run `cedit-forward-char' until the character before the point is in CHARS.
+
+CHARS will be made into `(list CHARS)' if it is not a list.
+
+CHARS = ?r:
 fo|o; (bar;) foobar;  =>  foo; (bar;) foobar|;
 foo; (bar;) foobar|;  =>  ERROR
 bar|; foobar;  =>  bar; foobar|;"
@@ -163,8 +171,11 @@ bar|; foobar;  =>  bar; foobar|;"
   (point))
 
 (defun cedit--search-char-backward (chars)
-  "* moves point even when fail
-\(search ?f)
+  "Run `cedit-backward-char' until the character after the point is in CHARS.
+
+CHARS will be made into `(list CHARS)' if it is not a list.
+
+CHARS = ?f:
 foo; (bar;) |foobar;  =>  |foo; (bar;) foobar;
 |foo; (bar;) foobar;  =>  ERROR
 foo; |foobar;  =>  |foo; foobar;"
@@ -175,6 +186,13 @@ foo; |foobar;  =>  |foo; foobar;"
   (point))
 
 (defun cedit--this-statement-type ()
+  "Get the type of the statement at point.
+
+Based on where `cedit-end-of-statement' takes us.
+
+If the end of the statement is `;', then return atom `statement'.
+If the end of the statement is `}', then return atom `block'.
+Else return nil."
   (cedit--save-excursion
    (cedit-end-of-statement 'this)
    (let ((ch (char-before)))
@@ -188,7 +206,10 @@ foo; |foobar;  =>  |foo; foobar;"
 
 ;;;###autoload
 (defun cedit-forward-char (&optional nest)
-  "balanced forward-char / returns point
+  "Balanced `forward-char'.  Returns point.
+
+NEST defaults to 0.
+
 foo|; {bar;} baz;  =>  foo;| {bar;} baz;
 foo;| {bar;} baz;  =>  foo; {bar;}| baz;
 foo; {bar;|} baz;  =>  ERROR
@@ -211,7 +232,8 @@ foo; {bar;} baz;|  =>  ERROR"
 
 ;;;###autoload
 (defun cedit-backward-char (&optional nest)
-  "balanced backward-char / returns point
+  "Balanced `backward-char'.  Returns point.
+
 foo; {bar;}| baz;  =>  foo; |{bar;} baz;
 foo;| {bar;} baz;  =>  foo|; {bar;} baz;
 foo; {|bar;} baz;  =>  ERROR
@@ -233,35 +255,41 @@ foo; {|bar;} baz;  =>  ERROR
    (point)))
 
 ;;;###autoload
-(defun cedit-end-of-statement (&optional this)
-  "goto end of statement
-when THIS is non-nil, do not move to next statement
-when fail, point is never moved
+(defun cedit-end-of-statement (&optional dont-continue)
+  "Go to end of the statement.
+
+When DONT-CONTINUE is non-nil, only move to the end of the current
+statement (do nothing if already there).
+When ERROR, point is never moved.
+
 foo;| {bar;} baz;  =>  foo; {bar;}| baz;
 foo; {bar;}| baz;  =>  foo; {bar;} baz;|
 foo; {bar;} baz;|  =>  ERROR
 foo; {bar;|} baz;  =>  ERROR"
   (interactive)
-  (if (and this (member (char-before) '(?\; ?\})))
-      ;; if THIS, and the point is EOS, just return point
+  (if (and dont-continue (member (char-before) '(?\; ?\})))
+      ;; if dont-continue, and the point is EOS, just return point
       (point)
     ;; otherwise, search for next EOS
     (cedit--move-iff-possible
      (cedit--search-char-forward '(?\; ?\})))))
 
 ;;;###autoload
-(defun cedit-beginning-of-statement (&optional this)
-  "goto beginning of statement
-when THIS is non-nil, do not move to previous statement
-when fail, point is never moved
+(defun cedit-beginning-of-statement (&optional dont-continue)
+  "Go to beginning of the statement.
+
+When DONT-CONTINUE is non-nil, only move to the beginning of the
+current statement (do nothing if already there).
+When ERROR, point is never moved.
+
 foo; {bar;} |baz;  =>  foo; |{bar;} baz;
 foo; |{bar;} baz;  =>  |foo; {bar;} baz;
 |foo; {bar;} baz;  =>  ERROR
 foo; {|bar;} baz;  =>  ERROR"
   (interactive)
   (cedit--move-iff-possible
-   ;; if THIS, goto end of this statement
-   (when this (cedit-end-of-statement 'this))
+   ;; goto end of this statement so back will work correctly
+   (when dont-continue (cedit-end-of-statement t))
    ;; goto previous BOS
    (cedit-backward-char)          ; fail if no statements are backward
    (when (ignore-errors
@@ -272,7 +300,8 @@ foo; {|bar;} baz;  =>  ERROR"
 
 ;;;###autoload
 (defun cedit-down-block ()
-  "go down into block
+  "Go down into the code block after cursor.
+
 |else{foo; bar;}  =>  else{|foo; bar;}
 |foo;  =>  ERROR"
   (interactive)
@@ -292,10 +321,12 @@ foo; {|bar;} baz;  =>  ERROR"
 
 ;;;###autoload
 (defun cedit-up-block-backward ()
-  "go backward out of block.
-if called at top-level, goto beginning of the first statement.
+  "Go backward out of block.
+
+If called at the top level, go to the beginning of the first statement.
+
 do{foo; bar; b|az;}  =>  |do{foo; bar; baz;}
- foo; bar; b|az;   =>   |foo; bar; baz;"
+foo; bar; b|az;  =>  |foo; bar; baz;"
   (interactive)
   ;; goto beginning of the first statement
   (ignore-errors
@@ -309,10 +340,12 @@ do{foo; bar; b|az;}  =>  |do{foo; bar; baz;}
 
 ;;;###autoload
 (defun cedit-up-block-forward ()
-  "go forward out of block.
-if called at top-level, goto end of the last statement.
+  "go forward out of block
+
+If called at top-level, go to the end of the last statement.
+
 do{foo; bar; b|az;}  =>  do{foo; bar; baz;}|
- foo; bar; b|az;   =>   foo; bar; baz;|"
+foo; bar; b|az;  =>  foo; bar; baz;|"
   (interactive)
   ;; goto end of the last statement
   (ignore-errors
@@ -327,6 +360,11 @@ do{foo; bar; b|az;}  =>  do{foo; bar; baz;}|
 ;; * slurp command
 
 (defun cedit--slurp-semi ()
+  "slurp statement after semicolon
+
+{f|oo; bar, baz;}  =>  f|oo, bar, baz;
+{foo, bar, baz;|}  =>  ERROR
+"
   (cedit--save-excursion
    ;; foo;| bar;
    (cedit-end-of-statement 'this)
@@ -344,30 +382,62 @@ do{foo; bar; b|az;}  =>  do{foo; bar; baz;}|
      (insert ", "))))
 
 (defun cedit--slurp-brace ()
+  "slurp statement after brace
+
+{fo|o; bar;} baz;  =>  {fo|o; bar; baz;}
+
+do {
+  fo|o;
+  bar;
+}
+baz;
+==>>
+do {
+  fo|o;
+  bar;
+  baz;
+}
+"
   (cedit--save-excursion
-   ;; foo; }| bar;
-   (let ((type (cedit--this-statement-type)))
-     (cond ((eq type 'block)
-            (cedit-end-of-statement 'this))
-           ((eq type 'statement)
-            (cedit-up-block-forward))))
-   (cedit--assert (= (char-before) ?\}))
-   ;; foo; |} bar;
-   (let* ((beg (1- (point)))
-          ;; foo; } |bar;
-          (end (progn (cedit-end-of-statement) ; existence of next stmt is asserted here
-                      (cedit-beginning-of-statement 'this))))
-     ;; foo; |bar;
-     (delete-region beg end)
-     ;; foo; bar;|
-     (cedit-end-of-statement)
-     ;; foo; bar; }|
-     (insert "\n}")
-     (indent-region beg (point)))))
+   ;; get in front of }
+   (backward-up-list)
+   (forward-list)
+   ;; }|
+   (let* ((end-yank (point))
+          (begin-yank
+           (save-excursion
+             (backward-char)
+             (cedit-beginning-of-statement)
+             (cedit-end-of-statement)
+             ;; foo;|   }| bar;
+             ;; second bar is end-yank
+             ;; first bar is point below
+             (point))))
+     ;; get region begin-yank to end-yank as yank
+     (let ((yank
+            ;; store to register then restore register
+            (let ((reg (get-register ?r)))
+              (copy-to-register ?r begin-yank end-yank)
+              (prog1
+                  (get-register ?r)
+                (set-register ?r reg)))))
+       ;; point is at }| bar;
+       (cedit-end-of-statement)
+       ;; point is at } bar;|
+       ;; remove |   }|
+       (delete-region begin-yank end-yank)
+       ;; indent newly slurped expression
+       (indent-for-tab-command)
+       ;; and put it after bar;
+       (insert yank)))))
 
 ;;;###autoload
 (defun cedit-slurp ()
   "slurp statement
+
+Calls `cedit--slurp-semi' or `cedit--slurp-brace' based on
+context of the cursor.
+
 {fo|o; bar;} baz;  =>  {fo|o, bar;} baz;
                    =>  {fo|o, bar; baz;}
                    =>  {fo|o, bar, baz;}"
@@ -382,28 +452,46 @@ do{foo; bar; b|az;}  =>  do{foo; bar; baz;}|
 ;;;###autoload
 (defun cedit-wrap-brace ()
   "wrap statement with brace
-to wrap two or more statements, mark them"
+
+Wraps a region (mark and point) if the mark is active instead of the
+current statement.
+
+foo;
+b|ar;
+=>
+foo;
+|{
+  bar;
+}
+
+(bar is correctly indented based on the indentation settings)"
   (interactive)
-  (cedit--save-excursion
-   (if (and transient-mark-mode mark-active)
-       (let ((beg (region-beginning))
-             (end (region-end)))
-         (deactivate-mark)
-         (goto-char beg)
-         (insert "{\n")
-         (goto-char (+ 2 end))
-         (insert "\n}")
-         (indent-region beg (point)))
-     (cedit-beginning-of-statement 'this)
-     (let ((beg (point)))
-       (insert "{\n")
-       (cedit-end-of-statement 'this)
-       (insert "\n}")
-       (indent-region beg (point))))))
+  (if (and transient-mark-mode mark-active)
+      (let ((beg (region-beginning))
+            (end (region-end)))
+        (deactivate-mark)
+        (goto-char beg)
+        (insert "{\n")
+        (goto-char (+ 2 end))
+        (insert "\n}")
+        (indent-region beg (point)))
+    (cedit-beginning-of-statement 'this)
+    (let ((beg (point)))
+      (insert "{\n")
+      (cedit-end-of-statement 'this)
+      (insert "\n}")
+      (indent-region beg (point))))
+  (backward-list))
 
 ;; * barf command
 
 (defun cedit--barf-semi ()
+  "Turn a comma into a semicolon, ejecting an expression.
+
+f|oo, bar, baz;
+=>
+f|oo, bar;
+baz;"
   (cedit--save-excursion
    ;; f|oo, bar;
    (let ((beg (cedit-beginning-of-statement 'this))
@@ -426,6 +514,31 @@ to wrap two or more statements, mark them"
      (indent-region beg (cedit-end-of-statement)))))
 
 (defun cedit--barf-brace ()
+  "Eject expression from braces.
+
+{
+  foo;
+  bar;
+  baz;
+}
+==>>
+{
+  foo;
+  bar;
+}
+baz;
+==>>
+{
+  foo;
+}
+bar;
+baz;
+==>>
+{
+}
+foo;
+bar;
+baz;"
   (cedit--save-excursion
    (when (eq (cedit--this-statement-type) 'block)
      (cedit-down-block))
@@ -447,7 +560,10 @@ to wrap two or more statements, mark them"
 
 ;;;###autoload
 (defun cedit-barf ()
-  "barf statement
+  "Barf statement from its context.
+
+Prioritizes `cedit--barf-semi' over `cedit--barf-brace'.
+
 {fo|o, bar; baz;}  =>  {fo|o; bar; baz;}
                    =>  {fo|o; bar;} baz;
                    =>  {fo|o;} bar; baz;"
@@ -460,13 +576,21 @@ to wrap two or more statements, mark them"
 ;; * splice command
 
 (defun cedit--splice-killing-backward-semi ()
-  (let* ((beg (save-excursion
-                (when (> (save-excursion (cedit-beginning-of-statement 'this))
-                         (cedit--search-char-backward ?,)) ; may fail
-                  (error "this is the first expression"))
-                (forward-char)
-                (skip-chars-forward "\s\t\n")
-                (point)))
+  "Kill toward begging of statement in comma operator statement.
+
+{foo; bar, b|az, foobar;}  =>  {foo; |baz, foobar;}
+{foo; bar, baz, |foobar;}  =>  {foo; |foobar;}"
+  (let* ((beg
+          (save-excursion
+            (when (>
+                   (save-excursion
+                     (cedit-beginning-of-statement 'this))
+                   (cedit--search-char-backward ?,)) ; may fail
+              (error
+               "this is the first expression"))
+            (forward-char)
+            (skip-chars-forward "\s\t\n")
+            (point)))
          (end (save-excursion
                 (cedit-end-of-statement 'this)
                 (cedit--assert (= (char-before) ?\;))
@@ -474,6 +598,13 @@ to wrap two or more statements, mark them"
     (delete-region (cedit-beginning-of-statement 'this) beg)))
 
 (defun cedit--splice-killing-backward-brace ()
+  "Kill statements before that at the point and raise the result out of the block.
+
+{foo; bar, b|az, foobar; asdf, kappa;}
+=>  |bar, baz, foobar; asdf, kappa;
+
+{foo; bar, baz, foobar; asd|f, kappa;}
+=>  |asdf, kappa;"
   (let* ((beg (save-excursion
                 (cedit-beginning-of-statement 'this)))
          (end (save-excursion
@@ -489,9 +620,12 @@ to wrap two or more statements, mark them"
 
 ;;;###autoload
 (defun cedit-splice-killing-backward ()
-  "splice statements killing preceding statements
+  "Splice statements killing preceding statements.
+
+Run `cedit--splice-killing-backward-semi' then
+`cedit--splice-killing-backward-brace'.
+
 {foo; bar, b|az, foobar;}  =>  {foo; |baz, foobar;}
-                           =>  {|baz, foobar;}
                            =>  baz, foobar;"
   (interactive)
   (cedit--orelse (cedit--splice-killing-backward-semi)
@@ -500,6 +634,9 @@ to wrap two or more statements, mark them"
 ;; * raise command
 
 (defun cedit--raise-semi ()
+  "Raise part of a comma operator list.
+
+{foo; bar, b|az, foobar;}  =>  {foo; |baz;}"
   (let* ((beg (save-excursion
                 (when (ignore-errors (cedit--search-char-backward '(?, ?\; ?\})))
                   (forward-char))
@@ -517,6 +654,11 @@ to wrap two or more statements, mark them"
     (save-excursion (insert str ";"))))
 
 (defun cedit--raise-brace (&optional beg end)
+  "Raise a statement of a braced list of statements.
+
+BEG and END default to the beginning and end of the current statement.
+
+{foo; bar, b|az, foobar;}  =>  |bar, baz, foobar;"
   (let* ((beg (or beg
                   (save-excursion (cedit-beginning-of-statement 'this))))
          (end (or end
@@ -616,8 +758,7 @@ to raise statement, in case comma-expr is also able to be raise, mark it."
             ((< pare c) (cedit--orelse (paredit-raise-sexp)
                                        (cedit-raise)))
             (t (cedit--orelse (cedit-raise)
-                              (paredit-raise-sexp))))))
-  )
+                              (paredit-raise-sexp)))))))
 
 ;; * provide
 
