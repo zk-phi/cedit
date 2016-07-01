@@ -114,7 +114,7 @@
 
 ;; * constants
 
-(defconst cedit-version "0.0.2")
+(defconst cedit-version "0.1.0")
 
 ;; * utilities
 
