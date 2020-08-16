@@ -278,7 +278,7 @@ foo; {|bar;} baz;  =>  ERROR"
   (interactive)
   ;; Down into (), [] ---- 2013 / 12 / 25
   (if (and (called-interactively-p 'any)
-           (or (and (looking-back "\\s)" (1- (point)))
+           (or (and (looking-back "\\s)" (max 1 (1- (point))))
                     (backward-sexp 1))
                (looking-at "\\s(")))
       (progn (forward-char 1) (skip-chars-forward "\s\t\n"))
